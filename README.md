@@ -45,7 +45,7 @@ During auto-solve mode:
 
 4. **Run the game:**  
    ```
-   python TowerOfHanoi.py
+   python hanoi_pygame.py
    ```
 
 ## Code Structure
