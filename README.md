@@ -1,114 +1,74 @@
-# Tower of Hanoi with Random Initial State (Pygame)
+# Tower of Hanoi (Random Initial State) - Pygame Visualization
 
-A visual and interactive Tower of Hanoi puzzle game in Python using Pygame, featuring:
-
-- **Random initial states** (always valid, with smaller disks above larger ones)
-- **Manual mode** (user solves the puzzle)
-- **Auto-solve mode** (the program finds & plays the solution from any valid state)
-- **Restart anytime** (press Space bar for a new random challenge)
-- **Disk numbering** and clear color visualization
-- **User-friendly interface** with info panel and mode buttons
-
----
+A visual and interactive implementation of the Tower of Hanoi puzzle with a twist:  
+You can **start from any valid random initial state**, and the goal is always to move all disks to the **rightmost pole**.
 
 ## Features
 
-- **Variation:** Start from *any* valid configuration—disks can be split across any poles, as long as no disk is on a smaller one.
-- **Always solve to the rightmost pole.**
-- **Easy controls:** Click poles to move disks in manual mode.
-- **Auto-solver:** Uses BFS to find the shortest move sequence from any state to the goal.
-- **Disk numbers:** Each disk is clearly numbered for easy tracking.
-- **Modes:** Switch instantly between manual (user) and auto (program) solving via panel buttons.
-- **Panel:** Top-left corner displays moves, disk count, and mode. Buttons for mode switching and new games.
-- **Replayability:** Press `Space` to restart with a new random (but always solvable) arrangement.
+- **Random Initial State:** Disks are placed randomly (but validly) on the three poles at the start.
+- **Two Modes:**
+  - **Manual:** Play and solve the puzzle yourself by moving disks.
+  - **Auto:** Watch the shortest solution found for the current state.
+- **Optimal Moves Calculation:** Shows the minimal number of moves required from the current state (using BFS).
+- **Scoring:** Get a score based on how close you are to the optimal solution.
+- **Interactive GUI:** Click to select and move disks, or use buttons to switch modes or start a new game.
+- **Customizable Disk Count:** Easily modify the number of disks between 3 and 8.
 
----
+## Controls
 
-## How to Play
+- **Click on Poles:** Select the source and destination poles to move disks (in manual mode).
+- **Auto Solve Button:** Instantly shows the optimal solution for the current puzzle.
+- **Manual Solve Button:** Switches back to manual mode at any time.
+- **New Game Button:** Generates a new random valid starting arrangement.
+- **Spacebar:** Quick restart with a new random state.
 
-1. **Run**:  
+## How to Run
+
+1. **Install Python:**  
+   Make sure you have Python 3.x installed.
+
+2. **Install pygame:**  
    ```
-   python hanoi_pygame.py
+   pip install pygame
    ```
-2. **Manual Mode**:  
-   - Click on a pole to select the top disk.
-   - Click another pole to move the disk there (if the move is valid).
-   - Objective: Move all disks to the rightmost pole.
-3. **Auto Mode**:  
-   - Click the "Auto Solve" button in the panel to watch the program solve the puzzle from the current configuration.
-   - Click "Manual Solve" to return to user play.
-4. **New Game / Random State**:  
-   - Press the `Space` bar or click "New Game" to generate a fresh random (always valid) initial state.
 
----
+3. **Save the code:**  
+   Save the provided `TowerOfHanoi.py` code to your computer.
 
-## Requirements
+4. **Run the game:**  
+   ```
+   python TowerOfHanoi.py
+   ```
 
-- Python 3.7+
-- [pygame](https://www.pygame.org/)
+## Code Structure
 
-Install requirements via:
+- **Disk:** Class representing an individual disk, including drawing and selecting.
+- **Pole:** Represents a pole (stack), manages its disks.
+- **Button:** Simple interactive UI button.
+- **HanoiGame:** Main game logic, UI rendering, move validation, state generation, and solution finding.
+- **main():** Initializes the game, manages events and the main loop.
 
-```
-pip install -r requirements.txt
-```
+## Game Rules
 
----
+- Only one disk can be moved at a time.
+- A disk can only be placed on top of a larger disk (or an empty pole).
+- The goal is to stack all disks, in order, on the **rightmost pole**.
 
-## Project Files
+## Screenshots
 
-- `hanoi_pygame.py` &mdash; Main program (see code)
-- `requirements.txt` &mdash; Python dependencies
-- `README.md` &mdash; This file
-
----
+*![screenshot.png](screenshot.png)*
 
 ## Customization
 
-- **Change number of disks:**  
-  Adjust the `disk_count` variable in `main()` (default is 5, supports 3 to 8).
-- **Colors:**  
-  Disk and UI colors are set as constants near the top of the script.
+- **Change Number of Disks:**  
+  Edit `disk_count = 5` in the `main()` function to select any number between 3 and 8.
+
+## Attributions & License
+
+- **Author:** [Fadil Eldin](https://github.com/FadilEldin)
+- **Date:** July 12, 2025
+- **License:** MIT
 
 ---
 
-## Implementation Notes
-
-- **Randomized start:**  
-  Disks are randomly distributed across poles but always stacked in decreasing size order, per Tower of Hanoi rules.
-- **Auto Solver:**  
-  Uses Breadth-First Search (BFS) to guarantee the shortest solution from *any* valid starting state to the goal.
-- **Validity:**  
-  The game enforces the rule: No disk may be placed on top of a smaller disk at any time, for both manual and auto moves.
-- **Restarting:**  
-  The game can be restarted at any time without restarting Python.
-
----
-
-## Acknowledgements
-
-- Created by Fadil Eldin, July 2025
-- Prompted and iterated with help from DeepSeek, GitHub Copilot, Claude, and ChatGPT
-
----
-
-## License
-
-MIT License (or specify your own)
-
----
-
-## Screenshot
-
-*![img.png](img.png)*
-
----
-
-## Troubleshooting
-
-- If you get "No module named 'pygame'", install it via `pip install pygame`.
-- Make sure your Python version is 3.7 or higher.
-
----
-
-Enjoy solving (or watching the auto-solver) the Tower of Hanoi in a whole new way!
+Enjoy solving the Tower of Hanoi from any random starting position!

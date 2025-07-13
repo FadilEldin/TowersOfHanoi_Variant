@@ -11,8 +11,8 @@ import sys
 import random
 import time
 from typing import List, Tuple, Optional
+
 import collections
-import math
 
 # Initialize pygame
 pygame.init()
@@ -130,9 +130,6 @@ class HanoiGame:
         self.auto_move_delay = 0.5  # seconds between auto moves
         self.last_auto_move_time = 0
         self.move_sequence = []
-        self.optimal_moves = 0
-        self.user_score = 0
-        self.solved = False
 
         # Buttons
         button_width = 120
@@ -171,60 +168,7 @@ class HanoiGame:
         self.selected_pole = None
         self.auto_solving = False
         self.move_sequence = []
-        self.optimal_moves = self.calculate_optimal_moves()
-        self.user_score = 0
-        self.solved = False
-    # ----------------------------------------
-    def calculate_optimal_moves(self) -> int:
-        """
-        Calculate the minimal moves needed to solve from current state using BFS.
-        Returns the number of moves in the optimal solution.
-        """
-        # Represent the state as a tuple of tuples (for hashing)
-        initial_state = tuple(tuple(disk.size for disk in pole.disks) for pole in self.poles)
-        goal_state = ((), (), tuple(range(self.disk_count, 0, -1)))
 
-        # If already in goal state, no moves needed
-        if initial_state == goal_state:
-            return 0
-
-        # BFS setup
-        queue = collections.deque([(initial_state, 0)])
-        visited = {initial_state}
-
-        while queue:
-            current_state, moves = queue.popleft()
-
-            # Check if we've reached the goal
-            if current_state == goal_state:
-                return moves
-
-            # Generate all possible next states
-            for src in range(3):
-                if not current_state[src]:  # No disks to move from this pole
-                    continue
-
-                # We can only move the top disk
-                disk_size = current_state[src][-1]
-
-                for dst in range(3):
-                    if src == dst:
-                        continue  # Can't move to same pole
-
-                    # Check if move is valid (empty destination or larger disk)
-                    if not current_state[dst] or current_state[dst][-1] > disk_size:
-                        # Create new state
-                        new_state = list(list(pole) for pole in current_state)
-                        disk = new_state[src].pop()
-                        new_state[dst].append(disk)
-                        new_state_tuple = tuple(tuple(pole) for pole in new_state)
-
-                        # If we haven't seen this state before
-                        if new_state_tuple not in visited:
-                            visited.add(new_state_tuple)
-                            queue.append((new_state_tuple, moves + 1))
-
-        return -1  # Should never happen for valid initial states
     # ----------------------------------------
     def draw(self, screen):
         screen.fill(BACKGROUND_COLOR)
@@ -233,12 +177,8 @@ class HanoiGame:
         pygame.draw.rect(screen, PANEL_COLOR, (10, 10, 780, 110))
 
         # Draw game info
-        mode_text = "Auto" if self.mode == "auto" else "Manual"
-        info_text = self.font.render(
-            f"Moves: {self.moves} | Disks: {self.disk_count} | Mode: {mode_text} | " +
-            f"Optimal: {self.optimal_moves} | Score: {self.user_score}%",
-            True, TEXT_COLOR
-        )
+        info_text = self.font.render(f"Moves: {self.moves} | Disks: {self.disk_count} | Mode: {self.mode}", True,
+                                     TEXT_COLOR)
         instruction_text = self.font.render("Click on poles to move disks. Goal: Move all disks to the rightmost pole.",
                                             True, TEXT_COLOR)
         screen.blit(info_text, (20, 20))
@@ -377,6 +317,96 @@ class HanoiGame:
             print("No solution found!")
             self.auto_solving = False
     # ----------------------------------------
+    def solve_from_current_state(self, temp_state, target_pole):
+        """
+        Generates moves to get all disks to target pole from any valid state
+        """
+        n_disks = sum(len(pole) for pole in temp_state)
+
+        # Base case: already solved
+        if len(temp_state[target_pole]) == n_disks:
+            return
+
+        # Find the largest disk not on target pole
+        for disk_size in range(n_disks, 0, -1):
+            found = False
+            for pole_idx in range(3):
+                if disk_size in temp_state[pole_idx]:
+                    if pole_idx != target_pole:
+                        source_pole = pole_idx
+                        largest_disk = disk_size
+                        found = True
+                        break
+            if found:
+                break
+
+        # Find auxiliary pole (neither source nor target)
+        auxiliary_pole = 3 - source_pole - target_pole
+
+        # Move all disks above largest disk to auxiliary pole
+        disk_index = temp_state[source_pole].index(largest_disk)
+        disks_above = temp_state[source_pole][:disk_index]
+
+        if disks_above:
+            self.move_tower(disks_above, source_pole, auxiliary_pole, target_pole, temp_state)
+
+        # Move largest disk to target pole
+        self.move_sequence.append((source_pole, target_pole))
+        temp_state[target_pole].append(temp_state[source_pole].pop(disk_index))
+
+        # Move the tower from auxiliary to target
+        if disks_above:
+            self.move_tower(temp_state[auxiliary_pole], auxiliary_pole, target_pole, source_pole, temp_state)
+
+    # ----------------------------------------
+    def move_tower(self, disks, source, target, auxiliary, temp_state):
+        """
+        Classic recursive Tower of Hanoi solution for a subset of disks
+        """
+        if not disks:
+            return
+
+        # Find the largest disk in this subset
+        largest_in_subset = disks[-1]
+
+        # Find its current position (might have changed due to other moves)
+        for pole_idx in range(3):
+            if largest_in_subset in temp_state[pole_idx]:
+                current_pole = pole_idx
+                break
+
+        # Move all disks above it to auxiliary pole
+        disk_index = temp_state[current_pole].index(largest_in_subset)
+        disks_above = temp_state[current_pole][:disk_index]
+
+        if disks_above:
+            self.move_tower(disks_above, current_pole, auxiliary, target, temp_state)
+
+        # Move the largest disk to target
+        if largest_in_subset in temp_state[current_pole]:
+            self.move_sequence.append((current_pole, target))
+            temp_state[target].append(temp_state[current_pole].pop(disk_index))
+
+        # Move the tower from auxiliary to target
+        if disks_above:
+            self.move_tower(temp_state[auxiliary], auxiliary, target, current_pole, temp_state)
+
+    # ----------------------------------------
+    def solve_hanoi(self, n: int, source: int, target: int, auxiliary: int, temp_poles: List[List[int]]):
+        if n > 0:
+            # Move n-1 disks from source to auxiliary
+            self.solve_hanoi(n - 1, source, auxiliary, target, temp_poles)
+
+            # Move the nth disk from source to target
+            if temp_poles[source] and (not temp_poles[target] or temp_poles[source][-1] < temp_poles[target][-1]):
+                disk = temp_poles[source].pop()
+                temp_poles[target].append(disk)
+                self.move_sequence.append((source, target))
+
+            # Move the n-1 disks from auxiliary to target
+            self.solve_hanoi(n - 1, auxiliary, target, source, temp_poles)
+
+    # ----------------------------------------
     def update(self):
         if self.mode == "auto" and self.auto_solving and self.move_sequence:
             current_time = time.time()
@@ -388,6 +418,7 @@ class HanoiGame:
                 # Check if we're done
                 if not self.move_sequence:
                     self.auto_solving = False
+
     # ----------------------------------------
     def move_disk(self, from_pole_idx: int, to_pole_idx: int):
         from_pole = self.poles[from_pole_idx]
@@ -408,68 +439,23 @@ class HanoiGame:
         self.moves += 1
 
         # Check for win condition (all disks on rightmost pole)
-        if len(self.poles[-1].disks) == self.disk_count and not self.solved:
-            self.solved = True
-            self.calculate_user_score()
+        if len(self.poles[-1].disks) == self.disk_count:
             self.show_win_message()
 
         return True
-    # ----------------------------------------
-    def calculate_user_score(self):
-        """Calculate user's score based on moves taken vs optimal moves"""
-        if self.optimal_moves > 0:
-            # Score is percentage where optimal moves = 100%
-            # Minimum score is 100% (if user matches optimal)
-            # Higher moves give lower percentage
-            self.user_score = min(100, int((self.optimal_moves / max(1, self.moves)) * 100))
-        else:
-            self.user_score = 100  # If optimal is 0 (already solved)
+
     # ----------------------------------------
     def show_win_message(self):
-        """Show win message with performance rating"""
-        rating = ""
-        if self.moves == self.optimal_moves:
-            rating = "Perfect! You matched the optimal solution!"
-        elif self.moves <= self.optimal_moves * 1.2:
-            rating = "Excellent! Very close to optimal!"
-        elif self.moves <= self.optimal_moves * 1.5:
-            rating = "Good! You can still improve."
-        else:
-            rating = "Keep practicing! Try to find more efficient solutions."
+        win_text = f"Congratulations! You solved the puzzle in {self.moves} moves."
+        print(win_text)
+        # In a full implementation, you might show this on screen
 
-        win_text = (
-            f"Solved in {self.moves} moves (optimal: {self.optimal_moves}). "
-            f"Score: {self.user_score}%. {rating}"
-        )
-
-        # Create a surface for the win message
-        msg_surface = pygame.Surface((600, 100))
-        msg_surface.fill(PANEL_COLOR)
-        pygame.draw.rect(msg_surface, TEXT_COLOR, msg_surface.get_rect(), 2)
-
-        # Render text lines
-        line1 = self.font.render(f"Solved in {self.moves} moves (optimal: {self.optimal_moves})", True, TEXT_COLOR)
-        line2 = self.font.render(f"Score: {self.user_score}% - {rating}", True, TEXT_COLOR)
-
-        # Center the message on screen
-        screen = pygame.display.get_surface()
-        msg_rect = msg_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
-
-        # Blit everything
-        screen.blit(msg_surface, msg_rect)
-        screen.blit(line1, (msg_rect.x + 20, msg_rect.y + 20))
-        screen.blit(line2, (msg_rect.x + 20, msg_rect.y + 50))
-
-        pygame.display.flip()
-        pygame.time.wait(3000)  # Show message for 3 seconds
-    # ----------------------------------------
     def is_valid_state(self) -> bool:
         for pole in self.poles:
             if not pole.is_valid():
                 return False
         return True
 # -------------------------------------------------------------------------------------
-
 def main():
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Tower of Hanoi with Random Initial State")
@@ -505,4 +491,4 @@ def main():
 # -------------------------------------------------------------------------------------
 if __name__ == "__main__":
     main()
-# ---------------------------------END-------------------------------------------------
+# -------------------------------------------------------------------------------------
