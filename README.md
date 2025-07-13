@@ -22,6 +22,14 @@ You can **start from any valid random initial state**, and the goal is always to
 - **New Game Button:** Generates a new random valid starting arrangement.
 - **Spacebar:** Quick restart with a new random state.
 
+## Speed Control
+
+During auto-solve mode:
+- Press **Up Arrow** to increase solving speed
+- Press **Down Arrow** to decrease solving speed
+- Speed ranges from 0.1s (fast) to 2.0s (slow) per move
+- Current speed is displayed in the info panel (as a multiplier)
+
 ## How to Run
 
 1. **Install Python:**  

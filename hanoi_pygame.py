@@ -2,9 +2,13 @@
 # Fadil Eldin
 # July 12 2025
 # Tower of Hanoi puzzle with a variation.Allow starting from any valid initial state and always move all disks to the rightmost pole.
-# 2 modes:
-# 1) Auto, You stack the disks on the right pole.
-# 2) Manual, let user solve the problem manually.
+# Two modes:
+# 1) Manual: Play and solve the puzzle yourself by moving disks.
+# 2) Auto: Watch the shortest solution found for the current state.
+# Optimal Moves Calculation: Shows the minimal number of moves required from the current state (using BFS).
+# Scoring: Get a score based on how close you are to the optimal solution.
+# Interactive GUI: Click to select and move disks, or use buttons to switch modes or start a new game.
+# Customizable Disk Count: Easily modify the number of disks between 3 and 8.
 # -------------------------------------------------------------------------------------
 import pygame
 import sys
@@ -38,6 +42,11 @@ PANEL_COLOR = (80, 80, 80)  # Darker gray panel
 BUTTON_COLOR = (100, 100, 100)  # Gray for buttons
 BUTTON_HOVER_COLOR = (120, 120, 120)  # Lighter gray for button hover
 
+# Auto-solve speed control
+MIN_AUTO_DELAY = 0.1   # Fastest speed (100ms between moves)
+MAX_AUTO_DELAY = 2.0   # Slowest speed (2 seconds between moves)
+AUTO_DELAY_STEP = 0.1  # Speed adjustment increment
+
 # Disk settings
 MAX_DISKS = 8
 MIN_DISKS = 3
@@ -51,6 +60,7 @@ class Disk:
         self.color = color
         self.width = MIN_DISK_WIDTH + (size - 1) * DISK_WIDTH_INCREMENT
         self.selected = False
+        self.auto_move_delay = 0.5  # Default speed (medium)
     # ----------------------------------------
     def draw(self, screen, x: int, y: int, font):
         # Draw disk rectangle
@@ -133,6 +143,11 @@ class HanoiGame:
         self.optimal_moves = 0
         self.user_score = 0
         self.solved = False
+        
+        # Win message display control
+        self.show_win_message_flag = False
+        self.win_message_start_time = 0
+        self.win_message_duration = 3.0  # seconds
 
         # Buttons
         button_width = 120
@@ -142,6 +157,17 @@ class HanoiGame:
         self.new_game_button = Button(300, 80, button_width, button_height, "New Game")
 
         self.generate_random_initial_state()
+    # ----------------------------------------
+    def adjust_speed(self, increase: bool):
+        """Adjust auto-solve speed using arrow keys"""
+        if increase:
+            self.auto_move_delay = max(MIN_AUTO_DELAY, self.auto_move_delay - AUTO_DELAY_STEP)
+        else:
+            self.auto_move_delay = min(MAX_AUTO_DELAY, self.auto_move_delay + AUTO_DELAY_STEP)
+
+        # Show speed change feedback
+        speed_multiplier = 1 / self.auto_move_delay
+        print(f"Auto-solve speed: {speed_multiplier:.1f}x speed ({self.auto_move_delay:.1f}s delay)")
     # ----------------------------------------
     def generate_random_initial_state(self):
         # Clear all poles
@@ -174,6 +200,8 @@ class HanoiGame:
         self.optimal_moves = self.calculate_optimal_moves()
         self.user_score = 0
         self.solved = False
+        self.show_win_message_flag = False
+        self.win_message_start_time = 0
     # ----------------------------------------
     def calculate_optimal_moves(self) -> int:
         """
@@ -232,17 +260,29 @@ class HanoiGame:
         # Draw panel
         pygame.draw.rect(screen, PANEL_COLOR, (10, 10, 780, 110))
 
-        # Draw game info
+        # Prepare mode-specific instructions
+        mode_instructions = ""
+        if self.mode == "auto" and self.auto_solving:
+            mode_instructions = "↑/↓: Change speed"
+        elif self.mode == "manual":
+            mode_instructions = "Click poles to move disks"
+
+        # Draw game info (two lines)
         mode_text = "Auto" if self.mode == "auto" else "Manual"
-        info_text = self.font.render(
-            f"Moves: {self.moves} | Disks: {self.disk_count} | Mode: {mode_text} | " +
+        info_line1 = self.font.render(
+            f"Moves: {self.moves} | Disks: {self.disk_count} | Mode: {mode_text} | "
             f"Optimal: {self.optimal_moves} | Score: {self.user_score}%",
             True, TEXT_COLOR
         )
-        instruction_text = self.font.render("Click on poles to move disks. Goal: Move all disks to the rightmost pole.",
-                                            True, TEXT_COLOR)
-        screen.blit(info_text, (20, 20))
-        screen.blit(instruction_text, (20, 45))
+
+        info_line2 = self.font.render(
+            f"Speed: {1 / self.auto_move_delay:.1f}x | {mode_instructions} | "
+            f"Goal: Move all disks to rightmost pole",
+            True, TEXT_COLOR
+        )
+
+        screen.blit(info_line1, (20, 20))
+        screen.blit(info_line2, (20, 45))
 
         # Draw buttons
         self.auto_solve_button.draw(screen, self.font)
@@ -265,6 +305,40 @@ class HanoiGame:
                 disk_y = SCREEN_HEIGHT - 100 - (i + 1) * DISK_HEIGHT
                 disk_x = pole.x - disk.width // 2
                 disk.draw(screen, disk_x, disk_y, self.disk_font)
+
+        # Draw win message if needed
+        if self.show_win_message_flag:
+            self.draw_win_message(screen)
+    # ----------------------------------------
+    def draw_win_message(self, screen):
+        """Draw the win message overlay"""
+        # Calculate performance rating
+        rating = ""
+        if self.moves == self.optimal_moves:
+            rating = "Perfect! You matched the optimal solution!"
+        elif self.moves <= self.optimal_moves * 1.2:
+            rating = "Excellent! Very close to optimal!"
+        elif self.moves <= self.optimal_moves * 1.5:
+            rating = "Good! You can still improve."
+        else:
+            rating = "Keep practicing! Try to find more efficient solutions."
+
+        # Create a surface for the win message
+        msg_surface = pygame.Surface((600, 100))
+        msg_surface.fill(PANEL_COLOR)
+        pygame.draw.rect(msg_surface, TEXT_COLOR, msg_surface.get_rect(), 2)
+
+        # Render text lines
+        line1 = self.font.render(f"Solved in {self.moves} moves (optimal: {self.optimal_moves})", True, TEXT_COLOR)
+        line2 = self.font.render(f"Score: {self.user_score}% - {rating}", True, TEXT_COLOR)
+
+        # Center the message on screen
+        msg_rect = msg_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+
+        # Blit everything
+        screen.blit(msg_surface, msg_rect)
+        screen.blit(line1, (msg_rect.x + 20, msg_rect.y + 20))
+        screen.blit(line2, (msg_rect.x + 20, msg_rect.y + 50))
     # ----------------------------------------
     def handle_click(self, pos, event):
         # Check buttons first
@@ -378,6 +452,13 @@ class HanoiGame:
             self.auto_solving = False
     # ----------------------------------------
     def update(self):
+        # Handle win message timing
+        if self.show_win_message_flag:
+            current_time = time.time()
+            if current_time - self.win_message_start_time >= self.win_message_duration:
+                self.show_win_message_flag = False
+
+        # Handle auto-solving
         if self.mode == "auto" and self.auto_solving and self.move_sequence:
             current_time = time.time()
             if current_time - self.last_auto_move_time >= self.auto_move_delay:
@@ -411,7 +492,9 @@ class HanoiGame:
         if len(self.poles[-1].disks) == self.disk_count and not self.solved:
             self.solved = True
             self.calculate_user_score()
-            self.show_win_message()
+            # Start showing win message (non-blocking)
+            self.show_win_message_flag = True
+            self.win_message_start_time = time.time()
 
         return True
     # ----------------------------------------
@@ -425,51 +508,12 @@ class HanoiGame:
         else:
             self.user_score = 100  # If optimal is 0 (already solved)
     # ----------------------------------------
-    def show_win_message(self):
-        """Show win message with performance rating"""
-        rating = ""
-        if self.moves == self.optimal_moves:
-            rating = "Perfect! You matched the optimal solution!"
-        elif self.moves <= self.optimal_moves * 1.2:
-            rating = "Excellent! Very close to optimal!"
-        elif self.moves <= self.optimal_moves * 1.5:
-            rating = "Good! You can still improve."
-        else:
-            rating = "Keep practicing! Try to find more efficient solutions."
-
-        win_text = (
-            f"Solved in {self.moves} moves (optimal: {self.optimal_moves}). "
-            f"Score: {self.user_score}%. {rating}"
-        )
-
-        # Create a surface for the win message
-        msg_surface = pygame.Surface((600, 100))
-        msg_surface.fill(PANEL_COLOR)
-        pygame.draw.rect(msg_surface, TEXT_COLOR, msg_surface.get_rect(), 2)
-
-        # Render text lines
-        line1 = self.font.render(f"Solved in {self.moves} moves (optimal: {self.optimal_moves})", True, TEXT_COLOR)
-        line2 = self.font.render(f"Score: {self.user_score}% - {rating}", True, TEXT_COLOR)
-
-        # Center the message on screen
-        screen = pygame.display.get_surface()
-        msg_rect = msg_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
-
-        # Blit everything
-        screen.blit(msg_surface, msg_rect)
-        screen.blit(line1, (msg_rect.x + 20, msg_rect.y + 20))
-        screen.blit(line2, (msg_rect.x + 20, msg_rect.y + 50))
-
-        pygame.display.flip()
-        pygame.time.wait(3000)  # Show message for 3 seconds
-    # ----------------------------------------
     def is_valid_state(self) -> bool:
         for pole in self.poles:
             if not pole.is_valid():
                 return False
         return True
 # -------------------------------------------------------------------------------------
-
 def main():
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Tower of Hanoi with Random Initial State")
@@ -487,8 +531,18 @@ def main():
         game.new_game_button.check_hover(mouse_pos)
 
         for event in pygame.event.get():
+
             if event.type == pygame.QUIT:
                 running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    game.generate_random_initial_state()
+                elif event.key == pygame.K_UP:  # Speed up
+                    game.adjust_speed(True)
+                elif event.key == pygame.K_DOWN:  # Slow down
+                    game.adjust_speed(False)
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                game.handle_click(mouse_pos, event)
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
                     game.generate_random_initial_state()
