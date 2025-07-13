@@ -106,7 +106,7 @@ See [`requirements.txt`](requirements.txt):
 
 ## License
 
-MIT License (see `LICENSE` if present).
+MIT License.
 
 ---
 
