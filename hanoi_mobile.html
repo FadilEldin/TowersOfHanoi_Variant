@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Tower of Hanoi - Mobile</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #323232;
+            color: white;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            touch-action: none;
+        }
+        
+        #gameContainer {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100vw;
+        }
+        
+        #gameCanvas {
+            flex: 1;
+            background: #323232;
+            touch-action: none;
+        }
+        
+        #controls {
+            background: #505050;
+            padding: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            align-items: center;
+            min-height: 60px;
+        }
+        
+        .button {
+            background: #646464;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+        
+        .button:hover, .button:active {
+            background: #787878;
+        }
+        
+        .button:disabled {
+            background: #404040;
+            color: #888;
+        }
+        
+        #info {
+            font-size: 12px;
+            text-align: center;
+            margin: 0 10px;
+        }
+        
+        #winMessage {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #505050;
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid white;
+            display: none;
+            z-index: 1000;
+            text-align: center;
+            max-width: 90%;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="controls">
+            <button class="button" id="autoBtn">Auto Solve</button>
+            <button class="button" id="manualBtn">Manual</button>
+            <button class="button" id="newGameBtn">New Game</button>
+            <button class="button" id="speedUpBtn">Speed+</button>
+            <button class="button" id="speedDownBtn">Speed-</button>
+            <div id="info">
+                <div id="gameInfo">Moves: 0 | Mode: Manual | Score: 0%</div>
+                <div id="instructions">Tap poles to move disks</div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="winMessage">
+        <div id="winText"></div>
+        <button class="button" onclick="hideWinMessage()">Continue</button>
+    </div>
+
+    <script>
+        class MobileHanoiGame {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.setupCanvas();
+                
+                this.diskCount = 5;
+                this.poles = [];
+                this.selectedPole = null;
+                this.moves = 0;
+                this.mode = 'manual';
+                this.autoSolving = false;
+                this.autoMoveDelay = 500; // milliseconds
+                this.lastAutoMoveTime = 0;
+                this.moveSequence = [];
+                this.optimalMoves = 0;
+                this.userScore = 0;
+                this.solved = false;
+                
+                this.diskColors = [
+                    '#FF0000', '#00FF00', '#87CEEB', '#FFFF00',
+                    '#FF00FF', '#00FFFF', '#FF8000', '#8000FF'
+                ];
+                
+                this.initGame();
+                this.setupEventListeners();
+                this.gameLoop();
+            }
+            
+            setupCanvas() {
+                const resizeCanvas = () => {
+                    const container = document.getElementById('gameContainer');
+                    const controls = document.getElementById('controls');
+                    
+                    this.canvas.width = window.innerWidth;
+                    this.canvas.height = window.innerHeight - controls.offsetHeight;
+                    
+                    this.canvasWidth = this.canvas.width;
+                    this.canvasHeight = this.canvas.height;
+                    
+                    // Calculate responsive dimensions
+                    this.poleSpacing = this.canvasWidth / 4;
+                    this.polePositions = [
+                        this.poleSpacing,
+                        this.poleSpacing * 2,
+                        this.poleSpacing * 3
+                    ];
+                    
+                    this.diskHeight = Math.max(20, this.canvasHeight * 0.04);
+                    this.minDiskWidth = Math.max(30, this.canvasWidth * 0.08);
+                    this.diskWidthIncrement = Math.max(15, this.canvasWidth * 0.03);
+                    
+                    this.poleHeight = this.canvasHeight * 0.6;
+                    this.poleWidth = Math.max(6, this.canvasWidth * 0.015);
+                    this.poleYStart = this.canvasHeight * 0.2;
+                };
+                
+                resizeCanvas();
+                window.addEventListener('resize', resizeCanvas);
+            }
+            
+            initGame() {
+                this.poles = this.polePositions.map(x => ({ x, disks: [] }));
+                this.generateRandomInitialState();
+                this.updateUI();
+            }
+            
+            setupEventListeners() {
+                // Touch and mouse events
+                this.canvas.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    const touch = e.touches[0];
+                    const rect = this.canvas.getBoundingClientRect();
+                    const x = touch.clientX - rect.left;
+                    const y = touch.clientY - rect.top;
+                    this.handleCanvasClick(x, y);
+                });
+                
+                this.canvas.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    const rect = this.canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    this.handleCanvasClick(x, y);
+                });
+                
+                // Button events
+                document.getElementById('autoBtn').addEventListener('click', () => this.setMode('auto'));
+                document.getElementById('manualBtn').addEventListener('click', () => this.setMode('manual'));
+                document.getElementById('newGameBtn').addEventListener('click', () => this.newGame());
+                document.getElementById('speedUpBtn').addEventListener('click', () => this.adjustSpeed(true));
+                document.getElementById('speedDownBtn').addEventListener('click', () => this.adjustSpeed(false));
+            }
+            
+            generateRandomInitialState() {
+                // Clear poles
+                this.poles.forEach(pole => pole.disks = []);
+                
+                // Create disks
+                const disks = [];
+                for (let i = 0; i < this.diskCount; i++) {
+                    disks.push({
+                        size: i + 1,
+                        color: this.diskColors[i % this.diskColors.length],
+                        width: this.minDiskWidth + i * this.diskWidthIncrement,
+                        selected: false
+                    });
+                }
+                
+                // Distribute randomly
+                for (let i = disks.length - 1; i >= 0; i--) {
+                    const disk = disks[i];
+                    const validPoles = this.poles.filter(pole => 
+                        pole.disks.length === 0 || pole.disks[pole.disks.length - 1].size > disk.size
+                    );
+                    
+                    if (validPoles.length > 0) {
+                        const randomPole = validPoles[Math.floor(Math.random() * validPoles.length)];
+                        randomPole.disks.push(disk);
+                    }
+                }
+                
+                // Ensure not all disks are on rightmost pole
+                if (this.poles[2].disks.length === this.diskCount) {
+                    const disk = this.poles[2].disks.pop();
+                    this.poles[0].disks.push(disk);
+                }
+                
+                this.moves = 0;
+                this.selectedPole = null;
+                this.autoSolving = false;
+                this.moveSequence = [];
+                this.optimalMoves = this.calculateOptimalMoves();
+                this.userScore = 0;
+                this.solved = false;
+                
+                this.updateUI();
+            }
+            
+            calculateOptimalMoves() {
+                const getState = () => this.poles.map(pole => pole.disks.map(disk => disk.size));
+                const goalState = [[], [], Array.from({length: this.diskCount}, (_, i) => this.diskCount - i)];
+                
+                const stateToString = (state) => JSON.stringify(state);
+                const initialState = getState();
+                
+                if (JSON.stringify(initialState) === JSON.stringify(goalState)) {
+                    return 0;
+                }
+                
+                const queue = [{state: initialState, moves: 0}];
+                const visited = new Set([stateToString(initialState)]);
+                
+                while (queue.length > 0) {
+                    const {state, moves} = queue.shift();
+                    
+                    if (JSON.stringify(state) === JSON.stringify(goalState)) {
+                        return moves;
+                    }
+                    
+                    for (let src = 0; src < 3; src++) {
+                        if (state[src].length === 0) continue;
+                        
+                        const diskSize = state[src][state[src].length - 1];
+                        
+                        for (let dst = 0; dst < 3; dst++) {
+                            if (src === dst) continue;
+                            
+                            if (state[dst].length === 0 || state[dst][state[dst].length - 1] > diskSize) {
+                                const newState = state.map(pole => [...pole]);
+                                const disk = newState[src].pop();
+                                newState[dst].push(disk);
+                                
+                                const newStateStr = stateToString(newState);
+                                if (!visited.has(newStateStr)) {
+                                    visited.add(newStateStr);
+                                    queue.push({state: newState, moves: moves + 1});
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                return -1;
+            }
+            
+            setMode(mode) {
+                this.mode = mode;
+                if (mode === 'auto') {
+                    this.prepareAutoSolve();
+                } else {
+                    this.autoSolving = false;
+                }
+                this.updateUI();
+            }
+            
+            prepareAutoSolve() {
+                this.moveSequence = [];
+                this.autoSolving = true;
+                this.lastAutoMoveTime = Date.now();
+                
+                const getState = () => this.poles.map(pole => pole.disks.map(disk => disk.size));
+                const goalState = [[], [], Array.from({length: this.diskCount}, (_, i) => this.diskCount - i)];
+                
+                const stateToString = (state) => JSON.stringify(state);
+                const initialState = getState();
+                
+                if (JSON.stringify(initialState) === JSON.stringify(goalState)) {
+                    this.autoSolving = false;
+                    return;
+                }
+                
+                const queue = [initialState];
+                const visited = new Map([[stateToString(initialState), null]]);
+                let found = false;
+                
+                while (queue.length > 0 && !found) {
+                    const currentState = queue.shift();
+                    
+                    if (JSON.stringify(currentState) === JSON.stringify(goalState)) {
+                        found = true;
+                        break;
+                    }
+                    
+                    for (let src = 0; src < 3; src++) {
+                        if (currentState[src].length === 0) continue;
+                        
+                        const diskSize = currentState[src][currentState[src].length - 1];
+                        
+                        for (let dst = 0; dst < 3; dst++) {
+                            if (src === dst) continue;
+                            
+                            if (currentState[dst].length === 0 || currentState[dst][currentState[dst].length - 1] > diskSize) {
+                                const newState = currentState.map(pole => [...pole]);
+                                const disk = newState[src].pop();
+                                newState[dst].push(disk);
+                                
+                                const newStateStr = stateToString(newState);
+                                if (!visited.has(newStateStr)) {
+                                    visited.set(newStateStr, {state: currentState, move: [src, dst]});
+                                    queue.push(newState);
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                if (found) {
+                    // Reconstruct path
+                    const path = [];
+                    let state = goalState;
+                    let stateStr = stateToString(state);
+                    
+                    while (visited.get(stateStr) !== null) {
+                        const {state: prevState, move} = visited.get(stateStr);
+                        path.unshift(move);
+                        state = prevState;
+                        stateStr = stateToString(state);
+                    }
+                    
+                    this.moveSequence = path;
+                } else {
+                    this.autoSolving = false;
+                }
+            }
+            
+            adjustSpeed(increase) {
+                if (increase) {
+                    this.autoMoveDelay = Math.max(100, this.autoMoveDelay - 100);
+                } else {
+                    this.autoMoveDelay = Math.min(2000, this.autoMoveDelay + 100);
+                }
+                this.updateUI();
+            }
+            
+            handleCanvasClick(x, y) {
+                if (this.mode !== 'manual' || this.autoSolving) return;
+                
+                // Find which pole was clicked
+                let clickedPole = -1;
+                for (let i = 0; i < this.poles.length; i++) {
+                    if (Math.abs(x - this.poles[i].x) < this.poleSpacing / 2 && 
+                        y > this.poleYStart) {
+                        clickedPole = i;
+                        break;
+                    }
+                }
+                
+                if (clickedPole === -1) return;
+                
+                if (this.selectedPole === null) {
+                    if (this.poles[clickedPole].disks.length > 0) {
+                        this.selectedPole = clickedPole;
+                        this.poles[clickedPole].disks[this.poles[clickedPole].disks.length - 1].selected = true;
+                    }
+                } else {
+                    if (this.selectedPole !== clickedPole) {
+                        this.moveDisk(this.selectedPole, clickedPole);
+                    }
+                    
+                    // Deselect
+                    if (this.poles[this.selectedPole].disks.length > 0) {
+                        this.poles[this.selectedPole].disks[this.poles[this.selectedPole].disks.length - 1].selected = false;
+                    }
+                    this.selectedPole = null;
+                }
+            }
+            
+            moveDisk(fromPole, toPole) {
+                const from = this.poles[fromPole];
+                const to = this.poles[toPole];
+                
+                if (from.disks.length === 0) return false;
+                
+                const disk = from.disks[from.disks.length - 1];
+                
+                if (to.disks.length > 0 && to.disks[to.disks.length - 1].size < disk.size) {
+                    return false;
+                }
+                
+                from.disks.pop();
+                to.disks.push(disk);
+                this.moves++;
+                
+                // Check win condition
+                if (this.poles[2].disks.length === this.diskCount && !this.solved) {
+                    this.solved = true;
+                    this.calculateUserScore();
+                    this.showWinMessage();
+                }
+                
+                this.updateUI();
+                return true;
+            }
+            
+            calculateUserScore() {
+                if (this.optimalMoves > 0) {
+                    this.userScore = Math.min(100, Math.floor((this.optimalMoves / Math.max(1, this.moves)) * 100));
+                } else {
+                    this.userScore = 100;
+                }
+            }
+            
+            showWinMessage() {
+                let rating = '';
+                if (this.moves === this.optimalMoves) {
+                    rating = 'Perfect! You matched the optimal solution!';
+                } else if (this.moves <= this.optimalMoves * 1.2) {
+                    rating = 'Excellent! Very close to optimal!';
+                } else if (this.moves <= this.optimalMoves * 1.5) {
+                    rating = 'Good! You can still improve.';
+                } else {
+                    rating = 'Keep practicing! Try to find more efficient solutions.';
+                }
+                
+                document.getElementById('winText').innerHTML = `
+                    <div>🎉 Puzzle Solved! 🎉</div>
+                    <div>Moves: ${this.moves} (Optimal: ${this.optimalMoves})</div>
+                    <div>Score: ${this.userScore}%</div>
+                    <div>${rating}</div>
+                `;
+                
+                document.getElementById('winMessage').style.display = 'block';
+            }
+            
+            newGame() {
+                this.generateRandomInitialState();
+            }
+            
+            updateUI() {
+                const speedMultiplier = (1000 / this.autoMoveDelay).toFixed(1);
+                document.getElementById('gameInfo').textContent = 
+                    `Moves: ${this.moves} | Mode: ${this.mode} | Score: ${this.userScore}%`;
+                
+                const instructions = this.mode === 'auto' && this.autoSolving ? 
+                    `Speed: ${speedMultiplier}x | Auto-solving...` : 
+                    'Tap poles to move disks';
+                document.getElementById('instructions').textContent = instructions;
+                
+                // Update button states
+                document.getElementById('autoBtn').disabled = this.autoSolving;
+                document.getElementById('manualBtn').disabled = this.autoSolving;
+                document.getElementById('speedUpBtn').disabled = this.mode !== 'auto';
+                document.getElementById('speedDownBtn').disabled = this.mode !== 'auto';
+            }
+            
+            update() {
+                if (this.mode === 'auto' && this.autoSolving && this.moveSequence.length > 0) {
+                    const now = Date.now();
+                    if (now - this.lastAutoMoveTime >= this.autoMoveDelay) {
+                        const [src, dst] = this.moveSequence.shift();
+                        this.moveDisk(src, dst);
+                        this.lastAutoMoveTime = now;
+                        
+                        if (this.moveSequence.length === 0) {
+                            this.autoSolving = false;
+                            this.updateUI();
+                        }
+                    }
+                }
+            }
+            
+            draw() {
+                this.ctx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
+                
+                // Draw poles
+                this.ctx.fillStyle = '#C8C8C8';
+                for (const pole of this.poles) {
+                    this.ctx.fillRect(
+                        pole.x - this.poleWidth / 2,
+                        this.poleYStart,
+                        this.poleWidth,
+                        this.poleHeight
+                    );
+                }
+                
+                // Draw disks
+                this.ctx.font = `${Math.max(12, this.diskHeight * 0.6)}px Arial`;
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                
+                for (const pole of this.poles) {
+                    for (let i = 0; i < pole.disks.length; i++) {
+                        const disk = pole.disks[i];
+                        const diskY = this.poleYStart + this.poleHeight - (i + 1) * this.diskHeight;
+                        const diskX = pole.x - disk.width / 2;
+                        
+                        // Draw disk
+                        this.ctx.fillStyle = disk.color;
+                        this.ctx.fillRect(diskX, diskY, disk.width, this.diskHeight);
+                        
+                        // Draw border
+                        this.ctx.strokeStyle = '#000';
+                        this.ctx.lineWidth = 1;
+                        this.ctx.strokeRect(diskX, diskY, disk.width, this.diskHeight);
+                        
+                        // Draw number
+                        this.ctx.fillStyle = '#000';
+                        this.ctx.fillText(disk.size.toString(), pole.x, diskY + this.diskHeight / 2);
+                        
+                        // Draw selection highlight
+                        if (disk.selected) {
+                            this.ctx.strokeStyle = '#FFFF00';
+                            this.ctx.lineWidth = 3;
+                            this.ctx.strokeRect(diskX - 2, diskY - 2, disk.width + 4, this.diskHeight + 4);
+                        }
+                    }
+                }
+            }
+            
+            gameLoop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.gameLoop());
+            }
+        }
+        
+        function hideWinMessage() {
+            document.getElementById('winMessage').style.display = 'none';
+        }
+        
+        // Start the game when page loads
+        window.addEventListener('load', () => {
+            new MobileHanoiGame();
+        });
+    </script>
+</body>
+</html>
