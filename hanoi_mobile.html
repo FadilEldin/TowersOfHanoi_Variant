@@ -1,3 +1,17 @@
+<!--
+# -------------------------------------------------------------------------------------
+# Fadil Eldin
+# July 12 2025
+# Tower of Hanoi puzzle with a variation.Allow starting from any valid initial state and always move all disks to the rightmost pole.
+# Two modes:
+# 1) Manual: Play and solve the puzzle yourself by moving disks.
+# 2) Auto: Watch the shortest solution found for the current state.
+# Optimal Moves Calculation: Shows the minimal number of moves required from the current state (using BFS).
+# Scoring: Get a score based on how close you are to the optimal solution.
+# Interactive GUI: Click to select and move disks, or use buttons to switch modes or start a new game.
+# Customizable Disk Count: Easily modify the number of disks between 3 and 8.
+# -------------------------------------------------------------------------------------
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -474,11 +488,21 @@
             
             updateUI() {
                 const speedMultiplier = (1000 / this.autoMoveDelay).toFixed(1);
-                document.getElementById('gameInfo').textContent = 
-                    `Moves: ${this.moves} | Mode: ${this.mode} | Score: ${this.userScore}%`;
+                
+                // Update game info based on mode
+                let gameInfoText = '';
+                if (this.mode === 'manual') {
+                    gameInfoText = `Moves: ${this.moves}/${this.optimalMoves} | Mode: Manual | Score: ${this.userScore}%`;
+                } else {
+                    gameInfoText = `Moves: ${this.moves} | Mode: Auto | Score: ${this.userScore}%`;
+                }
+                
+                document.getElementById('gameInfo').textContent = gameInfoText;
                 
                 const instructions = this.mode === 'auto' && this.autoSolving ? 
                     `Speed: ${speedMultiplier}x | Auto-solving...` : 
+                    this.mode === 'manual' ? 
+                    `Tap poles to move disks | Target: ${this.optimalMoves} moves` :
                     'Tap poles to move disks';
                 document.getElementById('instructions').textContent = instructions;
                 
