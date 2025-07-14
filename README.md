@@ -69,7 +69,7 @@ During auto-solve mode:
 ## Customization
 
 - **Change Number of Disks:**  
-  Edit `disk_count = 5` in the `main()` function to select any number between 3 and 8.
+  Edit `DISK_COUNT = 5` in the initialization section to select any number between 3 and 8.
 
 ## Attributions & License
 

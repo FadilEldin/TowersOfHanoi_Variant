@@ -53,6 +53,8 @@ MIN_DISKS = 3
 DISK_HEIGHT = 30
 MIN_DISK_WIDTH = 40
 DISK_WIDTH_INCREMENT = 20
+
+DISK_COUNT = 5
 # -------------------------------------------------------------------------------------
 class Disk:
     def __init__(self, size: int, color: Tuple[int, int, int]):
@@ -520,7 +522,7 @@ def main():
 
     clock = pygame.time.Clock()
 
-    disk_count = 5  # Default number of disks
+    disk_count = DISK_COUNT
     game = HanoiGame(disk_count)
 
     running = True
